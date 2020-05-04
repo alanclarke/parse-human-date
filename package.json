@@ -1,0 +1,37 @@
+{
+  "name": "parse-human-date",
+  "version": "1.0.0",
+  "description": "Parse a human textual description of a date, including relative times",
+  "main": "index.js",
+  "dependencies": {
+    "ms": "^2.1.2",
+    "numbered": "^1.1.0"
+  },
+  "devDependencies": {
+    "ava": "^3.5.0",
+    "coveralls": "^3.0.9",
+    "nyc": "^15.0.0",
+    "standard": "^14.3.1"
+  },
+  "scripts": {
+    "test": "standard && nyc --reporter=lcov --reporter=text-summary ava",
+    "lint": "standard",
+    "coverage": "nyc report --reporter=text-lcov | coveralls"
+  },
+  "author": "Alan Clarke <code@alz.io> (alz.io)",
+  "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alanclarke/parse-human-date.git"
+  },
+  "keywords": [
+    "human",
+    "date",
+    "parse",
+    "date"
+  ],
+  "bugs": {
+    "url": "https://github.com/alanclarke/parse-human-date/issues"
+  },
+  "homepage": "https://github.com/alanclarke/parse-human-date#readme"
+}
