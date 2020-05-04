@@ -8,7 +8,7 @@
 
 Parse a human style date
 
-200 LOC, 100% test coverage
+100% test coverage
 
 
 ## Installation
@@ -60,5 +60,4 @@ parseDate('the year after next')
 ## Options
 
 - assumeFuture: you can imagine two conversations, 'when did it happen'? vs 'when will it happen?'. Some context is required in order to correctly interpret a response like 'tuesday'. If assumeFuture is true, the library will assume 'next tuesday' is meant, if false, 'last tuesday'.
-- now: you can pass a reference ts against which any relative dates are computed. This deafaults to Date.now()
-# parse-human-date
+- now: you can pass a reference ts against which any relative dates are computed. This defaults to Date.now()
