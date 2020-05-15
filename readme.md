@@ -20,7 +20,7 @@ Parse a human style date
 ```js
 const parseDate = require('parse-human-date')
 
-// parseDate(text, options)
+parseDate(text, options) // returns a new javascript date
 
 // Examples:
 parseDate('today')
