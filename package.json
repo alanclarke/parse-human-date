@@ -1,6 +1,6 @@
 {
   "name": "parse-human-date",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Parse a human textual description of a date, including relative times",
   "main": "index.js",
   "dependencies": {
