@@ -7,18 +7,24 @@ const wordsToNumbers = require('words-to-numbers').default
 
 // in 2 years and 5 weeks
 const PATTERNS = {
-  WEEKDAYS: toPattern(WEEKDAYS),
+  // avoid confusion between 'monday' and 'month'
+  WEEKDAYS: toPattern(WEEKDAYS).replace('mon(', 'mon(?!th)('),
   MONTHS: toPattern(MONTHS),
   ORDINAL: '(?:st|th|rd|nd)',
-  PERIOD: '(sec(?:ond)|min(?:ute)?|h(?:ou)?r|day|week|month|year|2)s?',
+  PERIOD: '(sec(?:ond)|min(?:ute)?|h(?:ou)?r|day|week|month|year)s?',
   QUANTITY: '(an|a|the|\\d+(?:\\.\\d+)?)'
 }
 
 module.exports = function parseHumanDate (input, options = {}) {
   const { now = Date.now() } = options
   let date, match, periods
-  const text = wordsToNumbers(input)
+  let text = wordsToNumbers(input)
+
   if (typeof text !== 'string') return null
+
+  // words to numbers changes the word 'second' to 2, which isn't what you want
+  // when refering to 'one second'
+  text = text.replace(/(?<=(a|1|last|next|this)\s+)2/i, 'second')
 
   // times 'at 2'
   match = text.match(new RegExp([
@@ -62,6 +68,50 @@ module.exports = function parseHumanDate (input, options = {}) {
     if (text === 'midnight') setTime(date, 0, 0)
   }
 
+  // n period
+  periods = parsePeriods(text)
+  if (periods) {
+    match = text.match(new RegExp([
+      PATTERNS.QUANTITY, PATTERNS.PERIOD, '(before|after)', '(.*)'
+    ].join('\\s*') + '$', 'i')) || text.match(new RegExp([
+      PATTERNS.QUANTITY, PATTERNS.PERIOD, '(ago|time)?'
+    ].join('\\s*'), 'i'))
+    let [, , , suffix, reference] = match
+    if (['before', 'after'].includes(suffix)) {
+      const index = text.indexOf(suffix)
+      periods = parsePeriods(text.substr(0, index))
+      if (/^(last|next)$/.test(reference)) reference = `${reference} ${periods[0].period}`
+      const ref = parseHumanDate(reference, {
+        ...options,
+        now: date ? date.getTime() : options.now
+      })
+      if (ref) {
+        date = ref
+        for (const p of periods) {
+          const { n, period } = p
+          if (suffix === 'before') {
+            addPeriod(date, period, -n)
+          } else {
+            addPeriod(date, period, n)
+          }
+        }
+        return date
+      }
+    } else if (suffix === 'ago') {
+      date = date || new Date(now)
+      for (const p of periods) {
+        const { n, period } = p
+        addPeriod(date, period, -n)
+      }
+    } else {
+      date = date || new Date(now)
+      for (const p of periods) {
+        const { n, period } = p
+        addPeriod(date, period, n)
+      }
+    }
+  }
+
   // day 'tomorrow'
   match = text.match(new RegExp('^' + [
     '(today|now|yesterday|tomorrow)'
@@ -91,54 +141,13 @@ module.exports = function parseHumanDate (input, options = {}) {
     }
   }
 
-  // n period
-  periods = parsePeriods(text)
-  if (periods) {
-    match = text.match(new RegExp([
-      PATTERNS.QUANTITY, PATTERNS.PERIOD, '(before|after)', '(.*)'
-    ].join('\\s*') + '$', 'i')) || text.match(new RegExp([
-      PATTERNS.QUANTITY, PATTERNS.PERIOD, '(ago|time)?'
-    ].join('\\s*'), 'i'))
-    let [, , , suffix, reference] = match
-    if (['before', 'after'].includes(suffix)) {
-      const index = text.indexOf(suffix)
-      periods = parsePeriods(text.substr(0, index))
-      if (/^(last|next)$/.test(reference)) reference = `${reference} ${periods[0].period}`
-      const ref = parseHumanDate(reference, options)
-      if (ref) {
-        date = ref
-        for (const p of periods) {
-          const { n, period } = p
-          if (suffix === 'before') {
-            addPeriod(date, period, -n)
-          } else {
-            addPeriod(date, period, n)
-          }
-        }
-      }
-    } else if (suffix === 'ago') {
-      date = date || new Date(now)
-      for (const p of periods) {
-        const { n, period } = p
-        addPeriod(date, period, -n)
-      }
-    } else {
-      date = date || new Date(now)
-      for (const p of periods) {
-        const { n, period } = p
-        addPeriod(date, period, n)
-      }
-    }
-  }
-
   // last period / next period
-  match = text.match(new RegExp('^' + [
+  match = text.match(new RegExp([
     '(last|next)', PATTERNS.PERIOD
-  ].join('\\s*') + '$', 'i'))
+  ].join('\\s*'), 'i'))
   if (match) {
     date = date || new Date(now)
-    let [, direction, period] = match
-    if (period === '2') period = 'second'
+    const [, direction, period] = match
     if (direction === 'last') {
       addPeriod(date, period, -1)
     } else {
@@ -152,18 +161,13 @@ module.exports = function parseHumanDate (input, options = {}) {
   // next / last week on tuesday
   match = text.match(new RegExp('^' + [
     '(last|next|this)?', '(week)?', '(?:on)?', PATTERNS.WEEKDAYS, '(last|next|this)?', '(week)?'
-  ].join('\\s*') + '$', 'i'))
+  ].join('\\s*'), 'i'))
   if (match) {
     date = date || new Date(now)
     let [, type, period, day, type2, period2] = match
     type = type || type2 || 'this'
     period = period || period2
     if (period === 'week') {
-      if (type === 'next') {
-        addPeriod(date, 'week', 1)
-      } else if (type === 'last') {
-        addPeriod(date, 'week', -1)
-      }
       type = 'this'
     }
     setWeekday(date, type, day)
@@ -175,18 +179,13 @@ module.exports = function parseHumanDate (input, options = {}) {
   // last year on march / next year on march
   match = text.match(new RegExp('^' + [
     '(last|next|this)?', '(year)?', '(?:in)?', PATTERNS.MONTHS, '(last|next|this)?', '(year)?'
-  ].join('\\s*') + '$', 'i'))
+  ].join('\\s*'), 'i'))
   if (match) {
     date = date || new Date(now)
     let [, type, period, month, type2, period2] = match
     type = type || type2 || 'this'
     period = period || period2
     if (period === 'year') {
-      if (type === 'next') {
-        addPeriod(date, 'year', 1)
-      } else if (type === 'last') {
-        addPeriod(date, 'year', -1)
-      }
       type = 'this'
     }
     setMonth(date, type, month)
@@ -200,7 +199,6 @@ function parsePeriods (text) {
   return periods
     ? periods.map(p => {
       let [n, period] = p.split(/\s+/)
-      if (period === '2') period = 'second'
       n = parseNumber(n, { a: 1, an: 1, the: 1 })
       return { n, period }
     })
